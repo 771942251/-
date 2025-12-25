@@ -1,0 +1,955 @@
+<!-- 最终优化版 - 边框式相框+无反光+精准聚焦位置 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>魔法圣诞树 - 创意技术演示</title>
+    
+    <!-- 预加载核心模块 -->
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js">
+
+    <!-- 字体引入 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
+
+    <style>
+        /* 保持原有样式不变 */
+        :root {
+            --gold: #d4af37;
+            --cream: #fceea7;
+            --bg: #000000;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg);
+            font-family: 'Noto Serif SC', 'Times New Roman', serif;
+            color: var(--gold);
+            user-select: none;
+        }
+
+        /* 加载器 (Loader) */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 1s ease;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(212, 175, 55, 0.3);
+            border-top: 4px solid var(--gold);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 30px;
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .loader-text {
+            font-family: 'Cinzel', serif;
+            letter-spacing: 2px;
+            font-size: 16px;
+            color: var(--gold);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        .progress-container {
+            width: 300px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--gold), var(--cream));
+            transition: width 0.3s ease-out;
+            box-shadow: 0 0 10px var(--gold);
+        }
+
+        .progress-number {
+            margin-top: 8px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* UI 覆盖层 */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            transition: opacity 0.5s ease;
+        }
+
+        h1 {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            text-align: center;
+            font-family: 'Noto Serif SC', 'Cinzel', serif;
+            font-size: 56px;
+            margin: 0;
+            background: linear-gradient(to bottom, #ffffff, var(--gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 15px rgba(212, 175, 55, 0.6));
+            pointer-events: auto;
+            letter-spacing: 4px;
+        }
+
+        .upload-wrapper {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            padding: 14px 28px;
+            font-family: 'Noto Serif SC', serif;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 2px;
+            outline: none;
+            border-radius: 2px;
+        }
+
+        .glass-btn:hover {
+            background: rgba(212, 175, 55, 0.25);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .hint-text {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            letter-spacing: 1px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .ui-hidden {
+            opacity: 0;
+            pointer-events: none !important;
+        }
+
+        /* 上传提示 */
+        .upload-toast {
+            position: fixed;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(212, 175, 55, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .upload-toast.show {
+            opacity: 1;
+        }
+    </style>
+
+    <!-- 依赖映射 -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+
+    <!-- 加载屏幕 -->
+    <div id="loader">
+        <div class="spinner"></div>
+        <div class="loader-text">正在初始化...</div>
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="progress-number" id="progress-text">0%</div>
+    </div>
+
+    <!-- UI 层 -->
+    <div id="ui-layer">
+        <h1>圣诞快乐</h1>
+        <div class="upload-wrapper" id="upload-wrapper">
+            <button class="glass-btn" onclick="document.getElementById('file-input').click()">添加回忆照片</button>
+            <input type="file" id="file-input" accept="image/*" multiple> <!-- 已支持多选 -->
+            <div class="hint-text">双指缩放/拖动旋转 | 左右滑动切换模式 | 按 'H' 键隐藏控制栏</div>
+        </div>
+    </div>
+
+    <!-- 上传提示 -->
+    <div class="upload-toast" id="upload-toast">成功添加 3 张照片</div>
+
+    <!-- 主程序逻辑 -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 平衡性能与视觉效果的配置
+        const CONFIG = {
+            colors: { 
+                gold: 0xd4af37, 
+                cream: 0xfceea7,
+                red: 0xff3333, 
+                green: 0x008800,
+                blue: 0x4488ff,
+                yellow: 0xffff66
+            },
+            particles: { 
+                main: 1200,    // 增加粒子数量，使圣诞树更茂密
+                lights: 80,   
+                snow: 700     
+            },
+            photo: {
+                size: 1.8, // 照片尺寸
+                frameWidth: 0.15, // 相框边框宽度
+                frameThickness: 0.08, // 相框边框厚度
+                maxCount: 20, // 最大照片数量限制
+                focusDistance: 28, // 聚焦模式下照片到相机的距离（调整为合适距离）
+                focusHeight: 1.5, // 聚焦模式下照片的高度偏移
+                focusScale: 4.5, // 聚焦模式照片缩放（占视野一半）
+                moveSpeed: 0.4, // 整体移动速度系数（已提升一倍）
+                rotateSpeed: 0.05 // 旋转速度系数
+            }
+        };
+
+        // 状态管理
+        const STATE = {
+            mode: 'TREE', 
+            modes: ['TREE', 'SCATTER', 'FOCUS'],
+            modeIndex: 0,
+            targetPhoto: null,
+            autoRotate: true
+        };
+
+        // 显示上传提示
+        function showUploadToast(text) {
+            const toast = document.getElementById('upload-toast');
+            toast.textContent = text;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2000);
+        }
+
+        // 纹理生成
+        function createDefaultPhoto() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#222';
+            ctx.fillRect(0, 0, 512, 512);
+            ctx.strokeStyle = '#d4af37';
+            ctx.lineWidth = 20;
+            ctx.strokeRect(10, 10, 492, 492);
+            ctx.fillStyle = '#d4af37';
+            ctx.font = 'bold 100px "Noto Serif SC", serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("圣诞", 256, 180);
+            ctx.fillText("快乐", 256, 330);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            return tex;
+        }
+
+        // 简化雪花纹理
+        function createSnowflakeTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(16, 16, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // App 类
+        class App {
+            constructor() {
+                this.container = document.body;
+                this.particles = [];
+                this.photos = [];
+                this.lights = [];
+                this.snowflakes = [];
+                this.clock = new THREE.Clock();
+                this.initSequence();
+            }
+
+            updateProgress(percent, text) {
+                const bar = document.getElementById('progress-bar');
+                const num = document.getElementById('progress-text');
+                const label = document.querySelector('.loader-text');
+                if (bar) bar.style.width = `${percent}%`;
+                if (num) num.innerText = `${percent}%`;
+                if (label && text) label.innerText = text;
+            }
+
+            async initSequence() {
+                try {
+                    this.updateProgress(10, "启动 3D 引擎...");
+                    this.initThree();
+                    await new Promise(r => setTimeout(r, 50)); 
+                    
+                    this.updateProgress(40, "配置特效...");
+                    this.initPostProcessing();
+
+                    this.updateProgress(70, "生成圣诞树...");
+                    this.initContent();
+                    this.initEvents();
+
+                    this.updateProgress(100, "准备就绪！");
+                    this.start();
+                    
+                    setTimeout(() => {
+                        const loader = document.getElementById('loader');
+                        if(loader) {
+                            loader.style.opacity = '0';
+                            setTimeout(() => loader.remove(), 1000);
+                        }
+                    }, 500);
+
+                } catch (e) {
+                    console.error("初始化错误:", e);
+                    this.updateProgress(0, "初始化失败: " + e.message);
+                    const label = document.querySelector('.loader-text');
+                    if(label) label.style.color = "#ff4444";
+                }
+            }
+
+            initThree() {
+                // 渲染器配置
+                this.renderer = new THREE.WebGLRenderer({ 
+                    antialias: true,
+                    alpha: false,
+                    powerPreference: "high-performance"
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+                this.renderer.toneMapping = THREE.ReinhardToneMapping;
+                this.renderer.toneMappingExposure = 1.2; // 降低曝光度
+                this.renderer.shadowMap.enabled = false;
+                this.container.appendChild(this.renderer.domElement);
+
+                // 场景和相机
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x050515);
+                
+                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.set(0, 10, 70);
+
+                // 环境贴图（降低反射强度）
+                const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+                pmremGenerator.compileEquirectangularShader();
+                const envMap = pmremGenerator.fromScene(new RoomEnvironment(), 0.02).texture; // 降低环境光强度
+                envMap.encoding = THREE.SRGBColorSpace;
+                this.scene.environment = envMap;
+
+                // 光照（降低强度避免曝光）
+                const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+                this.scene.add(ambient);
+
+                const mainLight = new THREE.PointLight(0xffffff, 1.2, 100);
+                mainLight.position.set(0, 15, 10);
+                this.scene.add(mainLight);
+
+                const spotGold = new THREE.SpotLight(CONFIG.colors.gold, 600); // 降低聚光灯强度
+                spotGold.position.set(25, 35, 30);
+                spotGold.angle = Math.PI / 6;
+                spotGold.penumbra = 0.5;
+                this.scene.add(spotGold);
+
+                // 主组
+                this.mainGroup = new THREE.Group();
+                this.scene.add(this.mainGroup);
+
+                // 雪花组
+                this.snowGroup = new THREE.Group();
+                this.scene.add(this.snowGroup);
+
+                // 轨道控制
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                this.controls.screenSpacePanning = false;
+                this.controls.minDistance = 30;
+                this.controls.maxDistance = 120;
+                this.controls.maxPolarAngle = Math.PI / 2;
+                this.controls.enableRotate = true;
+                this.controls.enableZoom = true;
+                this.controls.enablePan = true;
+                this.controls.touches = {
+                    ONE: THREE.TOUCH.ROTATE,
+                    TWO: THREE.TOUCH.DOLLY_PAN
+                };
+            }
+
+            initPostProcessing() {
+                this.composer = new EffectComposer(this.renderer);
+                const renderPass = new RenderPass(this.scene, this.camera);
+                this.composer.addPass(renderPass);
+
+                // 降低bloom效果避免曝光
+                const bloomPass = new UnrealBloomPass(
+                    new THREE.Vector2(window.innerWidth, window.innerHeight),
+                    0.3, 0.2, 0.6
+                );
+                this.composer.addPass(bloomPass);
+            }
+
+            initContent() {
+                // 几何体配置
+                const boxGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                const sphereGeo = new THREE.SphereGeometry(0.35, 12, 12);
+                const starGeo = new THREE.SphereGeometry(0.7, 12, 12);
+
+                // 材质配置
+                const matGold = new THREE.MeshStandardMaterial({ 
+                    color: CONFIG.colors.gold, 
+                    metalness: 0.2, // 降低金属感避免反光
+                    roughness: 0.8, // 提高粗糙度
+                    emissive: 0x000000, // 关闭自发光
+                    emissiveIntensity: 0
+                });
+                const matGreen = new THREE.MeshStandardMaterial({ 
+                    color: CONFIG.colors.green, 
+                    roughness: 0.8,
+                    metalness: 0.1
+                });
+                const matRed = new THREE.MeshStandardMaterial({ 
+                    color: CONFIG.colors.red, 
+                    metalness: 0.1, 
+                    roughness: 0.8, 
+                    clearcoat: 0.2 // 降低清漆效果
+                });
+
+                // 创建装饰粒子
+                for (let i = 0; i < CONFIG.particles.main; i++) {
+                    let mesh;
+                    const r = Math.random();
+                    
+                    if (r < 0.4) {
+                        mesh = new THREE.Mesh(boxGeo, Math.random() > 0.2 ? matGreen : matGold);
+                    } else if (r < 0.8) {
+                        mesh = new THREE.Mesh(sphereGeo, r < 0.6 ? matRed : matGold);
+                    } else {
+                        mesh = new THREE.Mesh(starGeo, matGold);
+                        const glowMat = new THREE.MeshBasicMaterial({
+                            color: CONFIG.colors.cream,
+                            transparent: true,
+                            opacity: 0.5 // 降低发光强度
+                        });
+                        const glowMesh = new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 8), glowMat);
+                        mesh.add(glowMesh);
+                    }
+
+                    this.addParticle(mesh, 'DECOR');
+                }
+
+                // 圣诞灯
+                const lightGeo = new THREE.SphereGeometry(0.25, 8, 8);
+                const lightColors = [CONFIG.colors.red, CONFIG.colors.blue, CONFIG.colors.yellow, CONFIG.colors.gold];
+                
+                for (let i = 0; i < CONFIG.particles.lights; i++) {
+                    const color = lightColors[Math.floor(Math.random() * lightColors.length)];
+                    const lightMesh = new THREE.Mesh(lightGeo, new THREE.MeshBasicMaterial({ 
+                        color: color,
+                        transparent: true,
+                        opacity: 0.8 // 降低透明度
+                    }));
+                    
+                    const pointLight = new THREE.PointLight(color, 1.8, 6); // 降低灯光强度
+                    lightMesh.add(pointLight);
+                    this.lights.push({
+                        mesh: lightMesh, 
+                        light: pointLight, 
+                        blinkRate: 0.8 + Math.random() * 1.5
+                    });
+                    
+                    this.addParticle(lightMesh, 'LIGHT');
+                }
+
+                // 添加雪花
+                const snowGeo = new THREE.PlaneGeometry(0.6, 0.6);
+                const snowMat = new THREE.MeshBasicMaterial({
+                    map: createSnowflakeTexture(),
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                
+                for (let i = 0; i < CONFIG.particles.snow; i++) {
+                    const snow = new THREE.Mesh(snowGeo, snowMat);
+                    snow.rotation.z = Math.random() * Math.PI * 2;
+                    snow.position.set(
+                        (Math.random() - 0.5) * 120,
+                        Math.random() * 50,
+                        (Math.random() - 0.5) * 120
+                    );
+                    snow.userData.fallSpeed = 0.2 + Math.random() * 0.8;
+                    snow.userData.wave = Math.random() * 10;
+                    snow.userData.waveSpeed = 0.01 + Math.random() * 0.03;
+                    this.snowflakes.push(snow);
+                    this.snowGroup.add(snow);
+                }
+
+                // 添加默认照片
+                const defaultTexture = createDefaultPhoto();
+                this.addPhotoToScene(defaultTexture);
+
+                // 添加预设照片
+                this.addPresetPhotos();
+            }
+
+            // 添加预设照片（新功能）
+            addPresetPhotos() {
+                // 替换为您的照片URL数组
+                const presetPhotos = [
+                    'preset1.jpg',   // 第一张预设照片路径
+                    'preset2.jpg',   // 第二张预设照片路径
+                    'preset3.jpg'    // 第三张预设照片路径
+                ];
+                
+                presetPhotos.forEach((url, index) => {
+                    // 延迟加载，避免阻塞初始化
+                    setTimeout(() => {
+                        new THREE.TextureLoader().load(url, (texture) => {
+                            texture.colorSpace = THREE.SRGBColorSpace;
+                            this.addPhotoToScene(texture); // 使用与用户上传相同的方法
+                        }, undefined, (err) => {
+                            console.error(`加载预设照片${index+1}失败:`, err);
+                        });
+                    }, index * 500); // 每张照片间隔500ms加载
+                });
+            }
+
+            addParticle(mesh, type) {
+                // 计算球坐标位置（圣诞树形状）
+                const radius = 15 + Math.random() * 15;
+                const theta = Math.PI * (0.5 + Math.random() * 0.5); // 下半球体
+                const phi = Math.random() * Math.PI * 2;
+                
+                const x = radius * Math.sin(theta) * Math.cos(phi);
+                const y = radius * Math.cos(theta) + 10; // 向上偏移
+                const z = radius * Math.sin(theta) * Math.sin(phi);
+                
+                mesh.position.set(x, y, z);
+                mesh.scale.setScalar(0.8 + Math.random() * 0.6);
+                
+                // 添加动画数据
+                mesh.userData = {
+                    type,
+                    radius,
+                    theta,
+                    phi,
+                    orbitSpeed: 0.001 + Math.random() * 0.003,
+                    orbitDirection: Math.random() > 0.5 ? 1 : -1
+                };
+                
+                this.particles.push(mesh);
+                this.mainGroup.add(mesh);
+            }
+
+            addPhotoToScene(texture) {
+                if (this.photos.length >= CONFIG.photo.maxCount) {
+                    showUploadToast(`最多只能添加 ${CONFIG.photo.maxCount} 张照片`);
+                    return false;
+                }
+
+                // 照片平面
+                const aspect = texture.image ? texture.image.width / texture.image.height : 1;
+                const photoGeo = new THREE.PlaneGeometry(CONFIG.photo.size * aspect, CONFIG.photo.size);
+                const photoMat = new THREE.MeshStandardMaterial({ 
+                    map: texture,
+                    side: THREE.DoubleSide,
+                    metalness: 0.1,
+                    roughness: 0.8
+                });
+                const photoMesh = new THREE.Mesh(photoGeo, photoMat);
+
+                // 边框式相框（无反光）
+                const frameWidth = CONFIG.photo.frameWidth;
+                const frameThickness = CONFIG.photo.frameThickness;
+                
+                // 外框
+                const frameOuterGeo = new THREE.BoxGeometry(
+                    CONFIG.photo.size * aspect + frameWidth * 2,
+                    CONFIG.photo.size + frameWidth * 2,
+                    frameThickness
+                );
+                const frameMat = new THREE.MeshStandardMaterial({
+                    color: CONFIG.colors.gold,
+                    metalness: 0.2,
+                    roughness: 0.7
+                });
+                const frameOuter = new THREE.Mesh(frameOuterGeo, frameMat);
+                
+                // 内框（边框效果）
+                const frameInnerGeo = new THREE.BoxGeometry(
+                    CONFIG.photo.size * aspect - frameWidth * 2,
+                    CONFIG.photo.size - frameWidth * 2,
+                    frameThickness + 0.01
+                );
+                const frameInner = new THREE.Mesh(frameInnerGeo, frameMat);
+                frameInner.position.z = -0.01;
+
+                // 组合照片和相框
+                const photoGroup = new THREE.Group();
+                photoGroup.add(frameOuter);
+                photoGroup.add(frameInner);
+                photoGroup.add(photoMesh);
+                photoMesh.position.z = frameThickness / 2 + 0.01;
+
+                // 初始位置（圣诞树上）
+                const radius = 18 + Math.random() * 10;
+                const theta = Math.PI * (0.55 + Math.random() * 0.4);
+                const phi = Math.random() * Math.PI * 2;
+                
+                const x = radius * Math.sin(theta) * Math.cos(phi);
+                const y = radius * Math.cos(theta) + 8;
+                const z = radius * Math.sin(theta) * Math.sin(phi);
+                
+                photoGroup.position.set(x, y, z);
+                photoGroup.lookAt(0, y, 0);
+                photoGroup.rotation.y += Math.random() * 0.4 - 0.2;
+
+                // 存储照片状态数据
+                photoGroup.userData = {
+                    aspect,
+                    radius,
+                    theta,
+                    phi,
+                    orbitSpeed: 0.001 + Math.random() * 0.002,
+                    orbitDirection: Math.random() > 0.5 ? 1 : -1,
+                    originalPos: new THREE.Vector3(x, y, z),
+                    originalRot: new THREE.Euler().copy(photoGroup.rotation),
+                    targetPos: new THREE.Vector3(),
+                    targetRot: new THREE.Euler()
+                };
+
+                // 添加点击事件（用于聚焦模式）
+                photoGroup.userData.isPhoto = true;
+                this.photos.push(photoGroup);
+                this.mainGroup.add(photoGroup);
+                
+                return true;
+            }
+
+            initEvents() {
+                // 窗口大小调整
+                window.addEventListener('resize', () => this.onWindowResize());
+                
+                // 文件上传
+                document.getElementById('file-input').addEventListener('change', (e) => {
+                    const files = e.target.files;
+                    if (!files.length) return;
+                    
+                    let count = 0;
+                    Array.from(files).forEach(file => {
+                        if (this.photos.length >= CONFIG.photo.maxCount) return;
+                        
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            new THREE.TextureLoader().load(event.target.result, (texture) => {
+                                texture.colorSpace = THREE.SRGBColorSpace;
+                                if (this.addPhotoToScene(texture)) {
+                                    count++;
+                                }
+                            });
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                    
+                    if (count > 0) {
+                        showUploadToast(`成功添加 ${count} 张照片`);
+                    }
+                });
+
+                // 模式切换（左右滑动）
+                let touchStartX = 0;
+                document.addEventListener('touchstart', (e) => {
+                    touchStartX = e.touches[0].clientX;
+                }, false);
+                
+                document.addEventListener('touchend', (e) => {
+                    if (!touchStartX) return;
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const diffX = touchEndX - touchStartX;
+                    
+                    if (diffX > 50) {
+                        this.prevMode(); // 右滑
+                    } else if (diffX < -50) {
+                        this.nextMode(); // 左滑
+                    }
+                    touchStartX = 0;
+                }, false);
+
+                // 键盘控制
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'ArrowRight') this.nextMode();
+                    if (e.key === 'ArrowLeft') this.prevMode();
+                    if (e.key === 'h' || e.key === 'H') {
+                        const ui = document.getElementById('upload-wrapper');
+                        ui.classList.toggle('ui-hidden');
+                    }
+                    if (e.key === ' ') {
+                        STATE.autoRotate = !STATE.autoRotate;
+                    }
+                });
+
+                // 点击照片聚焦
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+                
+                window.addEventListener('click', (e) => {
+                    if (STATE.mode !== 'FOCUS') return;
+                    
+                    this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    
+                    this.raycaster.setFromCamera(this.mouse, this.camera);
+                    const intersects = this.raycaster.intersectObjects(this.photos, true);
+                    
+                    if (intersects.length > 0) {
+                        const photo = intersects[0].object;
+                        this.setTargetPhoto(photo.userData.isPhoto ? photo : photo.parent);
+                    }
+                });
+            }
+
+            onWindowResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.composer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            nextMode() {
+                STATE.modeIndex = (STATE.modeIndex + 1) % STATE.modes.length;
+                STATE.mode = STATE.modes[STATE.modeIndex];
+                this.updateMode();
+            }
+
+            prevMode() {
+                STATE.modeIndex = (STATE.modeIndex - 1 + STATE.modes.length) % STATE.modes.length;
+                STATE.mode = STATE.modes[STATE.modeIndex];
+                this.updateMode();
+            }
+
+            updateMode() {
+                if (STATE.mode === 'TREE') {
+                    // 树形模式 - 照片回到树上
+                    this.photos.forEach(photo => {
+                        photo.userData.targetPos.copy(photo.userData.originalPos);
+                        photo.userData.targetRot.copy(photo.userData.originalRot);
+                    });
+                    STATE.targetPhoto = null;
+                    this.controls.enableRotate = true;
+                } 
+                else if (STATE.mode === 'SCATTER') {
+                    // 分散模式 - 照片围绕观看者
+                    this.photos.forEach((photo, i) => {
+                        const angle = (i / this.photos.length) * Math.PI * 2;
+                        const radius = 30;
+                        photo.userData.targetPos.set(
+                            Math.cos(angle) * radius,
+                            CONFIG.photo.focusHeight + Math.sin(i * 0.5) * 3,
+                            Math.sin(angle) * radius
+                        );
+                        photo.userData.targetRot.set(0, angle + Math.PI, 0);
+                    });
+                    STATE.targetPhoto = null;
+                    this.controls.enableRotate = true;
+                } 
+                else if (STATE.mode === 'FOCUS') {
+                    // 聚焦模式 - 单张照片居中
+                    if (this.photos.length > 0) {
+                        this.setTargetPhoto(this.photos[0]);
+                    }
+                    this.controls.enableRotate = false;
+                }
+            }
+
+            setTargetPhoto(photo) {
+                if (!photo || !photo.userData.isPhoto) return;
+                
+                const index = this.photos.indexOf(photo);
+                if (index === -1) return;
+                
+                STATE.targetPhoto = index;
+                
+                // 定位当前照片
+                this.photos.forEach((p, i) => {
+                    if (i === index) {
+                        // 聚焦照片位置
+                        p.userData.targetPos.set(0, CONFIG.photo.focusHeight, -CONFIG.photo.focusDistance);
+                        p.userData.targetRot.set(0, 0, 0);
+                    } else {
+                        // 其他照片位置
+                        const angle = (i * 0.8) + Math.PI;
+                        const dist = CONFIG.photo.focusDistance * 0.8;
+                        p.userData.targetPos.set(
+                            Math.cos(angle) * dist,
+                            CONFIG.photo.focusHeight + Math.sin(i * 0.3) * 2,
+                            -CONFIG.photo.focusDistance + Math.sin(angle) * dist * 0.5
+                        );
+                        p.userData.targetRot.set(0, angle + Math.PI, 0);
+                    }
+                });
+            }
+
+            updateParticles(delta) {
+                // 更新装饰粒子
+                this.particles.forEach(particle => {
+                    particle.userData.phi += particle.userData.orbitSpeed * 
+                                          particle.userData.orbitDirection * delta * 60;
+                    
+                    const x = particle.userData.radius * Math.sin(particle.userData.theta) * Math.cos(particle.userData.phi);
+                    const z = particle.userData.radius * Math.sin(particle.userData.theta) * Math.sin(particle.userData.phi);
+                    
+                    particle.position.x = x;
+                    particle.position.z = z;
+                    particle.lookAt(0, particle.position.y, 0);
+                });
+
+                // 更新灯光闪烁
+                this.lights.forEach(light => {
+                    light.light.intensity = 1.2 + Math.sin(Date.now() * 0.001 * light.blinkRate) * 0.6;
+                });
+
+                // 更新雪花
+                this.snowflakes.forEach(snow => {
+                    snow.position.y -= snow.userData.fallSpeed * delta * 10;
+                    snow.position.x += Math.sin(snow.userData.wave) * 0.1;
+                    snow.userData.wave += snow.userData.waveSpeed * delta * 60;
+                    
+                    // 雪花重置
+                    if (snow.position.y < -10) {
+                        snow.position.y = 50;
+                        snow.position.x = (Math.random() - 0.5) * 120;
+                        snow.position.z = (Math.random() - 0.5) * 120;
+                    }
+                });
+
+                // 更新照片位置
+                this.photos.forEach(photo => {
+                    // 平滑过渡到目标位置
+                    photo.position.lerp(photo.userData.targetPos, delta * CONFIG.photo.moveSpeed * 5);
+                    photo.rotation.x += (photo.userData.targetRot.x - photo.rotation.x) * delta * CONFIG.photo.moveSpeed * 5;
+                    photo.rotation.y += (photo.userData.targetRot.y - photo.rotation.y) * delta * CONFIG.photo.moveSpeed * 5;
+                    photo.rotation.z += (photo.userData.targetRot.z - photo.rotation.z) * delta * CONFIG.photo.moveSpeed * 5;
+
+                    // 聚焦模式下的缩放
+                    let scale = 1;
+                    if (STATE.mode === 'FOCUS') {
+                        const isTarget = STATE.targetPhoto !== null && this.photos[STATE.targetPhoto] === photo;
+                        scale = isTarget ? CONFIG.photo.focusScale : 0.8;
+                    }
+                    
+                    // 平滑缩放
+                    const targetScale = new THREE.Vector3(scale, scale, scale);
+                    photo.scale.lerp(targetScale, delta * CONFIG.photo.moveSpeed * 5);
+                });
+
+                // 聚焦模式下自动切换照片
+                if (STATE.mode === 'FOCUS' && this.photos.length > 1) {
+                    this.focusTimer = (this.focusTimer || 0) + delta;
+                    if (this.focusTimer > 5) { // 5秒切换一次
+                        this.focusTimer = 0;
+                        STATE.targetPhoto = (STATE.targetPhoto + 1) % this.photos.length;
+                        this.setTargetPhoto(this.photos[STATE.targetPhoto]);
+                    }
+                } else {
+                    this.focusTimer = 0;
+                }
+
+                // 自动旋转
+                if (STATE.autoRotate && !this.controls.autoRotate) {
+                    this.mainGroup.rotation.y += delta * CONFIG.photo.rotateSpeed;
+                }
+            }
+
+            start() {
+                this.animate();
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                const delta = this.clock.getDelta();
+                this.updateParticles(delta);
+                this.controls.update();
+                
+                this.composer.render(delta);
+            }
+        }
+
+        // 启动应用
+        window.addEventListener('DOMContentLoaded', () => {
+            new App();
+        });
+    </script>
+</body>
+</html>
